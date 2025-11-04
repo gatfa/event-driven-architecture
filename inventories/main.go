@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -18,17 +19,17 @@ type Order struct {
 
 const (
 	topic         = "orders"
-	brokerAddress = "localhost:9092"
-	groupID       = "inventory-group" // <-- Crucial: Unique Group ID
+	brokerAddress = "kafka:29092"
+	groupID       = "inventory-group"
 )
 
 func main() {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{brokerAddress},
 		Topic:    topic,
-		GroupID:  groupID, // Messages are distributed among consumers in the same group
-		MinBytes: 10e3,    // 10KB
-		MaxBytes: 10e6,    // 10MB
+		GroupID:  groupID,
+		MinBytes: 10e3,
+		MaxBytes: 10e6,
 	})
 	defer r.Close()
 
@@ -47,8 +48,7 @@ func main() {
 			continue
 		}
 
-		// Simulate work
 		log.Printf("📦 [INVENTORY] Received Order %s. Updating stock for item %s.\n", order.OrderID, order.ItemID)
-		//time.Sleep(500 * time.Millisecond) // Simulate DB write
+		time.Sleep(500 * time.Millisecond) // Simulate DB write
 	}
 }

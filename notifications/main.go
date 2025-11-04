@@ -14,16 +14,12 @@ type Order struct {
 	OrderID   string `json:"order_id"`
 	ItemID    string `json:"item_id"`
 	UserEmail string `json:"user_email"`
-	// Other fields omitted for brevity
-	Password string 
-	//Test field
-	Test string
 }
 
 const (
 	topic         = "orders"
-	brokerAddress = "localhost:9092"
-	groupID       = "email-group" // <-- Crucial: A *different* Group ID
+	brokerAddress = "kafka:29092"
+	groupID       = "email-group"
 )
 
 func main() {
@@ -31,7 +27,7 @@ func main() {
 		Brokers:        []string{brokerAddress},
 		Topic:          topic,
 		GroupID:        groupID,
-		MaxWait:        500 * time.Millisecond, // reduce wait before returning messages
+		MaxWait:        500 * time.Millisecond,
 		CommitInterval: time.Second,
 	})
 	defer r.Close()
@@ -51,7 +47,6 @@ func main() {
 			continue
 		}
 
-		// Simulate work (e.g., calling an email API)
 		log.Printf("🔔 [Notification] Received Order %s. Sending confirmation to %s.\n", order.OrderID, order.UserEmail)
 		time.Sleep(2 * time.Second) // Simulate slow email API
 	}

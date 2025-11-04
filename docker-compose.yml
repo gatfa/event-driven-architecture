@@ -4,8 +4,6 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
     container_name: zookeeper
-    networks:
-      - kafka-net
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -13,10 +11,10 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.0.1
     container_name: kafka
-    networks:
-      - kafka-net
     ports:
       - "9092:9092"
+    expose:
+      - "29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
@@ -26,6 +24,49 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
-networks:
-  kafka-net:
-    driver: bridge
+  init-kafka:
+    image: confluentinc/cp-kafka:6.1.1
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka:29092 --list
+
+      echo -e 'Creating kafka topics'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic orders --replication-factor 1 --partitions 3
+
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+
+  orders-producer:
+    container_name: orders-service
+    build:
+      context: ./orders
+      dockerfile: Dockerfile
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    restart: on-failure
+
+  inventories-consumer:
+    container_name: inventories-service
+    build:
+      context: ./inventories
+      dockerfile: Dockerfile
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    restart: on-failure
+
+  notifications-consumer:
+    container_name: notification-service
+    build:
+      context: ./notifications
+      dockerfile: Dockerfile
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    restart: on-failure

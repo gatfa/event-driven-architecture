@@ -22,12 +22,11 @@ type Order struct {
 
 const (
 	topic         = "orders"
-	brokerAddress = "localhost:9092"
+	brokerAddress = "kafka:29092"
 )
 
 func main() {
 
-	// Create a new Kafka writer (Producer)
 	w := &kafka.Writer{
 		Addr:     kafka.TCP(brokerAddress),
 		Topic:    topic,
@@ -37,7 +36,6 @@ func main() {
 
 	log.Println("Producer started... (simulating new orders)")
 
-	// Simulate creating a new order every 3 seconds
 	for {
 		orderID := strconv.Itoa(rand.Intn(10000))
 		userID := strconv.Itoa(rand.Intn(100))
@@ -51,20 +49,17 @@ func main() {
 			UserEmail: "user" + userID + "@example.com",
 		}
 
-		// Marshal the struct into JSON
 		orderJSON, err := json.Marshal(order)
 		if err != nil {
 			log.Printf("Failed to marshal order: %v\n", err)
 			continue
 		}
 
-		// Create a Kafka message
 		msg := kafka.Message{
-			Key:   []byte(order.OrderID), // Key helps Kafka partition messages
+			Key:   []byte(order.OrderID),
 			Value: orderJSON,
 		}
 
-		// Write the message to the topic
 		err = w.WriteMessages(context.Background(), msg)
 		if err != nil {
 			log.Printf("Failed to write message: %v\n", err)
