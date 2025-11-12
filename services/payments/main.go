@@ -10,7 +10,7 @@ func main() {
 	client := internal.NewKafkaClient()
 	defer client.Close()
 
-	log.Println("Starting notification service...")
+	log.Println("Starting payment service...")
 	err := client.Read()
 
 	if err != nil {

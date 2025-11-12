@@ -119,3 +119,15 @@ services:
     restart: on-failure
     networks:
       - app-network
+
+  payments-service:
+    container_name: payments-service
+    build:
+      context: ./services/payments
+      dockerfile: Dockerfile
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - app-network
