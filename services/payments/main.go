@@ -1,8 +1,14 @@
 package main
 
 import (
-	"eda-notifications/internal"
+	"eda-payments/internal"
+	"eda-payments/internal/web"
 	"log"
+	"net/http"
+)
+
+const (
+	PORT = ":3002"
 )
 
 func main() {
@@ -10,10 +16,13 @@ func main() {
 	client := internal.NewKafkaClient()
 	defer client.Close()
 
+	server := web.NewServer(client)
+
 	log.Println("Starting payment service...")
-	err := client.Read()
+
+	err := http.ListenAndServe(PORT, server)
 
 	if err != nil {
-		log.Fatalf("Error reading messages: %v", err)
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }

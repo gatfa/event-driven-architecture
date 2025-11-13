@@ -1,4 +1,4 @@
-module eda-notifications
+module eda-payments
 
 go 1.25.2
 

@@ -122,6 +122,8 @@ services:
 
   payments-service:
     container_name: payments-service
+    ports:
+      - "3002:3002"
     build:
       context: ./services/payments
       dockerfile: Dockerfile

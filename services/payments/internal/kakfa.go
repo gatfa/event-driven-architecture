@@ -3,9 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
-	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -25,65 +22,53 @@ type Notification struct {
 }
 
 type KafkaClient struct {
-	reader *kafka.Reader
-	writer *kafka.Writer
+	notification *kafka.Writer
+	inventory    *kafka.Writer
 }
 
 func NewKafkaClient() *KafkaClient {
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{BROKER_ADDRESS},
-		Topic:   INVENTORY_TOPIC,
-		GroupID: GROUP_ID,
-	})
+	inventory := &kafka.Writer{
+		Addr:  kafka.TCP(BROKER_ADDRESS),
+		Topic: INVENTORY_TOPIC,
+	}
 
-	writer := &kafka.Writer{
+	notification := &kafka.Writer{
 		Addr:  kafka.TCP(BROKER_ADDRESS),
 		Topic: NOTIFICATION_TOPIC,
 	}
 
 	return &KafkaClient{
-		reader,
-		writer,
+		inventory,
+		notification,
 	}
 }
 
-func (k KafkaClient) Read() error {
-
-	for {
-		m, err := k.reader.ReadMessage(context.Background())
-		if err != nil {
-			return err
-		}
-
-		var income Inventaire
-		if err := json.Unmarshal(m.Value, &income); err != nil {
-			log.Printf("Error unmarshaling JSON: %v\n", err)
-			continue
-		}
-
-		output := fmt.Sprintf("[Payment] Received inventory validation: %s", income)
-		log.Println(output)
-
-		// Simulate payment processing delay
-		time.Sleep(time.Second * 2)
-
-		payment, err := json.Marshal(Notification{Action: "Payment processed successfully"})
-		if err != nil {
-			return err
-		}
-
-		msg := kafka.Message{
-			Key:   []byte("payment_notification"),
-			Value: payment,
-		}
-
-		err = k.writer.WriteMessages(context.TODO(), msg)
-
-		if err != nil {
-			return err
-		}
+func sendKafkaMessage(writer *kafka.Writer, key string, value interface{}) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
 	}
 
+	msg := kafka.Message{
+		Key:   []byte(key),
+		Value: data,
+	}
+
+	err = writer.WriteMessages(context.TODO(), msg)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (k KafkaClient) SendInventory() error {
+	return sendKafkaMessage(k.inventory, "payment_inventory", Inventaire{})
+}
+
+func (k KafkaClient) SendNotification() error {
+	return sendKafkaMessage(k.notification, "payment_notification", Notification{Action: "Payment processed successfully"})
 }
 
 func (k KafkaClient) Close() {
