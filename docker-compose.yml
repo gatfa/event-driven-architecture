@@ -1,5 +1,11 @@
 version: "3.8"
 
+networks:
+  users-service-network:
+    driver: bridge
+  app-network:
+    driver: bridge
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
@@ -7,6 +13,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
 
   kafka:
     image: confluentinc/cp-kafka:7.0.1
@@ -23,20 +31,105 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - app-network
 
-  init-kafka:
-    image: confluentinc/cp-kafka:6.1.1
+  kafka-init:
+    container_name: kafka-init
+    image: confluentinc/cp-kafka:7.0.1
+    command: ["/bin/bash", "-c", "/create-topics.sh"]
+    environment:
+      TOPICS: "logs.central,notifications.central"
     depends_on:
-      - kafka
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "
-      # blocks until kafka is reachable
-      kafka-topics --bootstrap-server kafka:29092 --list
+      kafka:
+        condition: service_started
+    volumes:
+      - type: bind
+        source: ./ressources/create-topics.sh
+        target: /create-topics.sh
+    init: true
+    networks:
+      - app-network
 
-      echo -e 'Creating kafka topics'
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic orders --replication-factor 1 --partitions 3
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8080:8080
+    environment:
+      DYNAMIC_CONFIG_ENABLED: "true"
+    volumes:
+      - ./ressources/kafkaui.yml:/etc/kafkaui/dynamic_config.yaml
+    networks:
+      - app-network
 
-      echo -e 'Successfully created the following topics:'
-      kafka-topics --bootstrap-server kafka:29092 --list
-      "
+  logs-service:
+    container_name: logs-service
+    ports:
+      - "3000:3000"
+    build:
+      context: ./services/logs
+      dockerfile: Dockerfile
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - app-network
+
+  users-service-database:
+    container_name: users-service-database
+    image: mongo:latest
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin_root
+      - MONGO_INITDB_ROOT_PASSWORD=password_root
+    volumes:
+      - ./services/users/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - users-service-network
+
+  users-service:
+    container_name: users-service
+    ports:
+      - "3001:3001"
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      users-service-database:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - users-service-network
+      - app-network
+
+  notifications-service:
+    container_name: notifications-service
+    build:
+      context: ./services/notifications
+      dockerfile: Dockerfile
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - app-network
+
+  payments-service:
+    container_name: payments-service
+    ports:
+      - "3002:3002"
+    build:
+      context: ./services/payments
+      dockerfile: Dockerfile
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - app-network
